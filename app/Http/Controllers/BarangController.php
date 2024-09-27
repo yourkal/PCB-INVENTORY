@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 
+use DB;
 use App\Models\Barang;
 use Illuminate\Http\Request;
 
@@ -12,29 +13,37 @@ class BarangController extends Controller
     public function index(Request $request)
     {
         $query = Barang::query();
-    
+
         // Cek jika ada filter tanggal
         if ($request->has('filter_tanggal') && $request->filter_tanggal != '') {
             $query->whereDate('tanggal', $request->filter_tanggal);
         }
-    
+
+        // Cek jika ada pencarian
+        if ($request->has('search') && $request->search != '') {
+            $query->where(function ($q) use ($request) {
+                $q->where('nama_barang', 'like', '%' . $request->search . '%')
+                    ->orWhere('jenis_barang', 'like', '%' . $request->search . '%');
+            });
+        }
+
         // Ambil semua data barang yang sudah difilter
         $barangs = $query->get();
-    
-        // Menghitung total per hari
-        $totals = $query->select('tanggal', 
-            \DB::raw('SUM(jumlah_masuk) as total_masuk'), 
-            \DB::raw('SUM(jumlah_terpakai) as total_terpakai'), 
-            \DB::raw('SUM(jumlah_tidak_terpakai) as total_tidak_terpakai'))
+
+        // Menghitung total per hari dari hasil pencarian atau filter
+        $totals = $query->select(
+            'tanggal',
+            \DB::raw('SUM(jumlah_masuk) as total_masuk'),
+            \DB::raw('SUM(jumlah_terpakai) as total_terpakai'),
+            \DB::raw('SUM(jumlah_tidak_terpakai) as total_tidak_terpakai'),
+            \DB::raw('SUM(jumlah_masuk - jumlah_terpakai - jumlah_tidak_terpakai) as total_selisih')
+        )
             ->groupBy('tanggal')
             ->get();
-    
-        // Kirim data barang dan total per hari ke view index.blade.php
+
         return view('barang.index', compact('barangs', 'totals'));
     }
-    
-    
-    
+
     // Tampilkan form buat barang baru
     public function create()
     {
@@ -51,8 +60,6 @@ class BarangController extends Controller
             'jumlah_terpakai' => 'required|numeric',
             'jumlah_tidak_terpakai' => 'required|numeric',
             'tanggal' => 'required|date',
-            'jam_masuk' => 'required|date_format:H:i',
-            'jam_selesai' => 'required|date_format:H:i',
         ]);
 
         // Logika ketidakseimbangan
@@ -64,12 +71,14 @@ class BarangController extends Controller
             ]);
         }
 
+        // Hitung jumlah selisih
+        $jumlah_selisih = $request->jumlah_masuk - ($request->jumlah_terpakai + $request->jumlah_tidak_terpakai);
+
         // Simpan data barang
-        Barang::create($request->all());
+        Barang::create(array_merge($request->all(), ['jumlah_selisih' => $jumlah_selisih]));
 
         return redirect()->route('barang.index')->with('success', 'Data barang berhasil ditambahkan');
     }
-
 
     // Tampilkan form edit barang
     public function edit($id)
@@ -87,14 +96,16 @@ class BarangController extends Controller
             'jumlah_terpakai' => 'required|numeric',
             'jumlah_tidak_terpakai' => 'required|numeric',
             'tanggal' => 'required|date',
-            'jam_masuk' => 'required|date_format:H:i',
-            'jam_selesai' => 'required|date_format:H:i',
         ]);
 
-        $barang = Barang::findOrFail($id);
-        $barang->update($request->all());
+        // Hitung jumlah selisih
+        $jumlah_selisih = $request->jumlah_masuk - ($request->jumlah_terpakai + $request->jumlah_tidak_terpakai);
 
-        return redirect()->route('barang.index')->with('success', 'Data barang berhasil diperbarui');
+        // Update data barang
+        $barang = Barang::findOrFail($id);
+        $barang->update(array_merge($request->all(), ['jumlah_selisih' => $jumlah_selisih]));
+
+        return redirect()->route('barang.index')->with('success', 'Data barang berhasil diupdate');
     }
 
 

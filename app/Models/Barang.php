@@ -10,14 +10,15 @@ class Barang extends Model
     use HasFactory;
 
     protected $fillable = [
+        'tanggal',
         'nama_barang',
         'jenis_barang',
         'jumlah_masuk',
         'jumlah_terpakai',
         'jumlah_tidak_terpakai',
-        'tanggal',
         'alasan_ketidakseimbangan',
-        'jam_masuk', // Tambahkan ini
-        'jam_selesai', // Tambahkan ini
+        'jam_masuk',
+        'jam_selesai',
+        'jumlah_selisih', // Tambahkan kolom jumlah_selisih di sini
     ];
 }
