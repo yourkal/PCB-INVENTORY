@@ -13,36 +13,45 @@ class BarangController extends Controller
     public function index(Request $request)
     {
         $query = Barang::query();
-
+     
         // Cek jika ada filter tanggal
         if ($request->has('filter_tanggal') && $request->filter_tanggal != '') {
             $query->whereDate('tanggal', $request->filter_tanggal);
         }
-
+    
         // Cek jika ada pencarian
         if ($request->has('search') && $request->search != '') {
             $query->where(function ($q) use ($request) {
                 $q->where('nama_barang', 'like', '%' . $request->search . '%')
-                    ->orWhere('jenis_barang', 'like', '%' . $request->search . '%');
+                   ->orWhere('jenis_barang', 'like', '%' . $request->search . '%');
             });
         }
-
+    
+        // Filter bulan jika ada input dari filter bulan
+        if ($request->has('filter_bulan') && $request->filter_bulan != '') {
+            $query->whereMonth('tanggal', '=', date('m', strtotime($request->filter_bulan)))
+                  ->whereYear('tanggal', '=', date('Y', strtotime($request->filter_bulan)));
+        }
+    
         // Ambil semua data barang yang sudah difilter
         $barangs = $query->get();
-
-        // Menghitung total per hari dari hasil pencarian atau filter
+    
+        // Menghitung total per bulan
         $totals = $query->select(
-            'tanggal',
+            \DB::raw('DATE_FORMAT(tanggal, "%Y-%m") as bulan'),
             \DB::raw('SUM(jumlah_masuk) as total_masuk'),
             \DB::raw('SUM(jumlah_terpakai) as total_terpakai'),
             \DB::raw('SUM(jumlah_tidak_terpakai) as total_tidak_terpakai'),
             \DB::raw('SUM(jumlah_masuk - jumlah_terpakai - jumlah_tidak_terpakai) as total_selisih')
         )
-            ->groupBy('tanggal')
-            ->get();
-
+        ->groupBy('bulan')
+        ->get();
+    
         return view('barang.index', compact('barangs', 'totals'));
     }
+    
+    
+    
 
     // Tampilkan form buat barang baru
     public function create()
